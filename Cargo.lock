@@ -448,7 +448,6 @@ name = "netflix-block-verify"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "itoa",
  "reqwest",
  "tokio",
  "url",

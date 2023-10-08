@@ -12,8 +12,14 @@ const NON_SELF_MADE_AVAILABLE_ID: u32 = 70143836;
 async fn main() -> Result<()> {
     let (area, self_made, non_self_made) = tokio::join!(check_is_available(AREA_AVAILABLE_ID),
         check_is_available(SELF_MADE_AVAILABLE_ID),check_is_available(NON_SELF_MADE_AVAILABLE_ID));
-    if let (Some(_), Some(_), Some(_)) = (area, self_made, non_self_made) {
-        println!("OK");
+    match (area, self_made, non_self_made) {
+        (Some(_), Some(_), Some(_)) => {
+            println!("OK");
+        }
+        (Some(_), Some(_), None) => {
+            println!("只能看自制");
+        }
+        _ => ()
     }
     Ok(())
 }
@@ -34,10 +40,12 @@ async fn check_is_available(id: u32) -> Option<String> {
     }
 
     let header_map = res.headers();
+    println!("{:#?}", header_map);
     let location = header_map.get("x-originating-url");
     if let Some(v) = location {
         let url = Url::parse(v.to_str().unwrap()).unwrap();
         let location: Vec<&str> = url.path().split("/").map(|res| res).collect();
+        println!("{:?}", location);
         // println!("{:?}", location[1].to_string());
         return Some(location[1].to_string());
     }
