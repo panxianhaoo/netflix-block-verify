@@ -3,7 +3,7 @@ const AREA_NAME: [&str; 244] = ["美国", "阿富汗", "奥兰群岛", "阿尔�
 
 pub fn get_area_name(code: String) -> String {
     for (i, index) in AREA_CODE.iter().enumerate() {
-        if index.contains(&code) {
+        if code.contains(index) {
             return AREA_NAME[i].to_string();
         }
     }
