@@ -1,3 +1,4 @@
+use std::io;
 use anyhow::Result;
 use colored::Colorize;
 use lazy_static::lazy_static;
@@ -35,6 +36,7 @@ async fn main() -> Result<()> {
         }
         _ => ()
     }
+    io::stdin().read_line(&mut String::new()).unwrap();
     Ok(())
 }
 
