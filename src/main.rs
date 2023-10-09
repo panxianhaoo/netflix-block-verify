@@ -1,14 +1,21 @@
 use anyhow::Result;
 use colored::Colorize;
+use lazy_static::lazy_static;
+use reqwest::Client;
 use reqwest::header::USER_AGENT;
 use reqwest::StatusCode;
 use url::Url;
+
 use netflix_block_verify::get_area_name;
 
 const NETFLIX_ADDR: &str = "https://www.netflix.com/title/";
 const AREA_AVAILABLE_ID: u32 = 80018499;
 const SELF_MADE_AVAILABLE_ID: u32 = 80197526;
 const NON_SELF_MADE_AVAILABLE_ID: u32 = 70143836;
+
+lazy_static! {
+    static ref CLIENT:Client = reqwest::Client::new();
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -35,8 +42,7 @@ async fn main() -> Result<()> {
 async fn check_is_available(id: u32) -> Option<String> {
     // println!("{:?}", id);
     let full_addr: String = format!("{NETFLIX_ADDR}{id}");
-    let client = reqwest::Client::new();
-    let res = client
+    let res = CLIENT
         .get(full_addr)
         .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36")
         .send()
