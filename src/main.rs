@@ -1,68 +1,57 @@
 use std::io;
+
 use anyhow::Result;
 use colored::Colorize;
-use lazy_static::lazy_static;
-use reqwest::Client;
 use reqwest::header::USER_AGENT;
-use reqwest::StatusCode;
-use url::Url;
+use reqwest::{Client, StatusCode};
 
-use netflix_block_verify::get_area_name;
+use area::get_area_name;
 
-const NETFLIX_ADDR: &str = "https://www.netflix.com/title/";
-const AREA_AVAILABLE_ID: u32 = 80018499;
+mod area;
+
+const NETFLIX_ADDR: &str = "https://www.netflix.com";
 const SELF_MADE_AVAILABLE_ID: u32 = 80197526;
 const NON_SELF_MADE_AVAILABLE_ID: u32 = 70143836;
-
-lazy_static! {
-    static ref CLIENT:Client = reqwest::Client::new();
-}
+const BROWSER_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36";
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let (area, self_made, non_self_made) = tokio::join!(check_is_available(AREA_AVAILABLE_ID),
-        check_is_available(SELF_MADE_AVAILABLE_ID),check_is_available(NON_SELF_MADE_AVAILABLE_ID));
-    match (area, self_made, non_self_made) {
-        (Some(area), Some(_), Some(_)) => {
+    let client = Client::new();
+    let (self_made, non_self_made) = tokio::join!(
+        check_is_available(&client, SELF_MADE_AVAILABLE_ID),
+        check_is_available(&client, NON_SELF_MADE_AVAILABLE_ID)
+    );
+    match (&self_made, non_self_made.is_some()) {
+        (Some(area), true) => {
             println!("{}", "完整解锁，可以看非自制".green());
-            println!("{}{}", "Netflix识别地域为".green(), get_area_name(area).green());
+            println!("{}", format!("Netflix识别地域为{}", get_area_name(area)).green());
         }
-        (Some(area), Some(_), None) => {
+        (Some(area), false) => {
             println!("{}", "只能看自制".yellow());
-            println!("{}{}", "Netflix识别地域为".yellow(), get_area_name(area).yellow());
+            println!("{}", format!("Netflix识别地域为{}", get_area_name(area)).yellow());
         }
-        (None, None, None) => {
+        (None, _) => {
             println!("{}", "无法观看Netflix".red());
         }
-        _ => ()
     }
-    io::stdin().read_line(&mut String::new()).unwrap();
+    io::stdin().read_line(&mut String::new())?;
     Ok(())
 }
 
-
-async fn check_is_available(id: u32) -> Option<String> {
-    // println!("{:?}", id);
-    let full_addr: String = format!("{NETFLIX_ADDR}{id}");
-    let res = CLIENT
-        .get(full_addr)
-        .header(USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36")
+/// 请求 title 页并跟随重定向（如 301 到 /sg/title/xxx），解锁时最终 200，
+/// 地区码直接从最终 URL 路径解析
+async fn check_is_available(client: &Client, id: u32) -> Option<String> {
+    let url = format!("{NETFLIX_ADDR}/title/{id}");
+    let res = client
+        .get(url)
+        .header(USER_AGENT, BROWSER_USER_AGENT)
         .send()
-        .await;
-    if let Err(_) = &res {
+        .await
+        .ok()?;
+    if res.status() != StatusCode::OK {
         return None;
-    } else {
-        let res = res.unwrap();
-        if res.status() != StatusCode::OK {
-            return None;
-        }
-        let header_map = res.headers();
-        let location = header_map.get("x-originating-url");
-        if let Some(v) = location {
-            let url = Url::parse(v.to_str().unwrap()).unwrap();
-            let location: Vec<&str> = url.path().split("/").map(|res| res).collect();
-            return Some(location[1].to_string());
-        }
     }
-    None
+    let segment = res.url().path().split('/').nth(1)?; // "/sg/title/xxx" -> "sg"
+    let code = segment.split('-').next().filter(|c| !c.is_empty())?;
+    Some(code.to_string())
 }
